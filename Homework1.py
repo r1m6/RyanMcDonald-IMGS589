@@ -40,10 +40,43 @@ for i in range(rows * cols):
 plt.tight_layout()
 plt.show()
 
+
 ## Problem 2
+
+def calculate_band_statistics(args):
+    args_flat = args.flatten()
+
+    stats = {
+        'mean': np.mean(args_flat),  # Average value of the band
+        'std': np.std(args_flat),  # Standard deviation (measure of spread)
+        'min': np.min(args_flat),  # Minimum value in the band
+        'max': np.max(args_flat),  # Maximum value in the band
+        'Q1': np.percentile(args_flat, 25),  # First quartile (25th percentile)
+        'median': np.median(args_flat),  # Median (50th percentile)
+        'Q3': np.percentile(args_flat, 75),  # Third quartile (75th percentile)
+        'skewness': skew(args_flat),  # Measure of asymmetry
+        'kurtosis': kurtosis(args_flat)  # Measure of "tailedness"
+    }
+    return stats
+
+stats = calculate_band_statistics(data[ :, :, 10])
+print(stats)
+
+def standardize(args):
+    band_mean = np.mean(args)  # Mean of the band
+    band_std = np.std(args)
+    z_matrix = (args - band_mean) / band_std
+
+    return z_matrix
+
+z_scores = standardize(data[ :, :, 10])
+print("z-score" , z_scores[400, 350])
+
+
 
 
 
 
 
 print('done')
+
