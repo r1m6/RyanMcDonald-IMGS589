@@ -1,7 +1,7 @@
 import numpy as np
 import matplotlib.pyplot as plt
-
-
+from scipy.stats import skew, kurtosis
+import seaborn as sns
 ## Problem 1
 
 # Loading data
@@ -40,7 +40,6 @@ for i in range(rows * cols):
 plt.tight_layout()
 plt.show()
 
-
 ## Problem 2
 
 def calculate_band_statistics(args):
@@ -70,13 +69,36 @@ def standardize(args):
     return z_matrix
 
 z_scores = standardize(data[ :, :, 10])
+
 print("z-score" , z_scores[400, 350])
 
+## Problem 3
 
+#a
 
+def correlation_matrix(args):
 
+    bands_flattened = data.reshape(-1, data.shape[-1])
+    corr_matrix = np.corrcoef(bands_flattened, rowvar=False)
+
+    return corr_matrix
+
+corr_matrix = correlation_matrix(data)
+
+plt.figure(figsize=(8, 6))
+plt.imshow(corr_matrix, cmap='coolwarm', vmin=-1, vmax=1)
+plt.colorbar(label='Correlation Coefficient')
+plt.title("Correlation Matrix of Sentinel-2 Bands")
+plt.xlabel("Bands")
+plt.ylabel("Bands")
+plt.xticks(range(data.shape[-1]), range(1, data.shape[-1] + 1))  # Label bands 1-12
+plt.yticks(range(data.shape[-1]), range(1, data.shape[-1] + 1))  # Label bands 1-12
+plt.show()
+
+#b
+
+#def correlation_plot(data):
 
 
 
 print('done')
-
