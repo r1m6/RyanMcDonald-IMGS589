@@ -5,6 +5,7 @@ import seaborn as sns
 import pandas as pd
 import statsmodels.api as sm
 from statsmodels.nonparametric.kde import KDEUnivariate
+from scipy.interpolate import interp1d
 
 #############################################################################################################
 ## Problem 1
@@ -47,6 +48,7 @@ plt.show()
 ###############################################################################################
 ## Problem 2
 
+# Band statistics
 def calculate_band_statistics(args):
     args_flat = args.flatten()
 
@@ -67,6 +69,7 @@ stats = calculate_band_statistics(data[ :, :, 10])
 print(stats)
 
 ################################################################################################
+# Standardize
 def standardize(args):
 
     standardized_data = np.zeros_like(data)
@@ -76,14 +79,14 @@ def standardize(args):
         band_mean = np.mean(band_data)
         band_std = np.std(band_data)
 
-        # Standardize the band
+        # Standardize band
         standardized_data[:, :, band] = (band_data - band_mean) / band_std
 
     return standardized_data
 
 z_scores = standardize(data)
 
-
+# Histograms
 def plot_histograms(data, standardized_data, band_labels):
 
     # Subplots
@@ -99,7 +102,7 @@ def plot_histograms(data, standardized_data, band_labels):
         # Standardized data histogram
         ax.hist(standardized_data[:, :, band].flatten(), bins=50, alpha=0.5, label='Standardized', color='red')
 
-        # Highlight outliers in standardized data
+        # Outliers in standardized data
         outliers = standardized_data[:, :, band].flatten()
         outliers = outliers[(outliers > 3) | (outliers < -3)]  # Z-scores > 3 or < -3 are outliers
         if len(outliers) > 0:
@@ -133,7 +136,7 @@ def correlation_matrix(args):
 corr_matrix = correlation_matrix(data)
 
 plt.figure(figsize=(8, 6))
-plt.imshow(corr_matrix, cmap='coolwarm', vmin=-1, vmax=1)
+plt.imshow(corr_matrix, cmap='gray', vmin=-1, vmax=1)
 plt.colorbar(label='Correlation Coefficient')
 plt.title("Correlation Matrix of Sentinel-2 Bands")
 plt.xlabel("Bands")
@@ -143,10 +146,11 @@ plt.yticks(range(data.shape[-1]), range(1, data.shape[-1] + 1))
 plt.show()
 
 
-#############################################################################################
-#b
+############################################################################################
+# b
 
-Pairplots
+# Pairplots
+
 def correlation_plot(data, band_idx, band_label):
 
     band_data = [data[:, :, i].flatten() for i in band_idx]
@@ -165,12 +169,12 @@ correlation_plot(data, band_idx_10m, band_labels_10m)
 ############################################################################################
 # Density
 def pairwise_density_plots_statsmodels(data, band_idx, band_labels, sample_size=5000):
-
     num_bands = len(band_idx)
-    fig, axes = plt.subplots(num_bands - 1, num_bands - 1, figsize=(12, 12))
-    fig.suptitle("Pairwise Density Plots for Selected Bands (Statsmodels KDE)", fontsize=16, y=0.92)
+    fig, axes = plt.subplots(num_bands - 1, num_bands - 1, figsize=(12, 12), constrained_layout=True)
 
-    # Loop through each pair of bands
+
+
+    # Loop through pairs of bands
     for i in range(num_bands - 1):
         for j in range(i + 1, num_bands):
             ax = axes[i, j - 1] if num_bands > 2 else axes  # Handle subplot layouts
@@ -182,22 +186,15 @@ def pairwise_density_plots_statsmodels(data, band_idx, band_labels, sample_size=
             band1_sample = band1[sample_idx]
             band2_sample = band2[sample_idx]
 
-            # Estimate density using KDEUnivariate
-            kde_band1 = KDEUnivariate(band1_sample)
-            kde_band2 = KDEUnivariate(band2_sample)
-            kde_band1.fit()
-            kde_band2.fit()
-
-            # Scatter plot with KDE smoothed densities
+            # Scatter plot with KDE densities
             ax.scatter(band1_sample, band2_sample, s=2, alpha=0.5, label="Scatter Points")
             sns.kdeplot(x=band1_sample, y=band2_sample, ax=ax, cmap="viridis", fill=True, alpha=0.5)
 
-            # Label axes and title
+            # axes and title
             ax.set_xlabel(band_labels[i])
             ax.set_ylabel(band_labels[j])
             ax.set_title(f"{band_labels[i]} vs {band_labels[j]}")
 
-    plt.tight_layout()
     plt.show()
 
 
@@ -207,8 +204,95 @@ pairwise_density_plots_statsmodels(data, band_idx_10m, band_labels_10m)
 
 # Problem 4
 
+Oakdf = pd.read_fwf("Oak.txt")  # Read fixed-width formatted file
+Roaddf = pd.read_fwf("Road.txt")
+
+
+oak_wavelengths = Oakdf.iloc[:, 0].values
+oak_reflectance = Oakdf.iloc[:, 1].values / 100
+road_wavelengths = Roaddf.iloc[:, 0].values
+road_reflectance = Roaddf.iloc[:, 1].values / 100
+
+# Omitting two sentinel bands
+sentinel_wavelengths = np.array([0.490, 0.560, 0.665, 0.705, 0.740, 0.783, 0.842, 0.865, 1.610, 2.190])
+
+# Interpolate Oak and Road spectra to match Sentinel-2 bands
+oak_interp = interp1d(oak_wavelengths, oak_reflectance, kind='linear', bounds_error=False, fill_value='extrapolate')
+road_interp = interp1d(road_wavelengths, road_reflectance, kind='linear', bounds_error=False, fill_value='extrapolate')
+
+oak_spectrum = oak_interp(sentinel_wavelengths)
+road_spectrum = road_interp(sentinel_wavelengths)
+
+data_adjusted = data[:, :, [1,2,3,4,5,6,7,8,10,11]]
+# print(data_adjusted.shape)
+
+# Flatten Sentinel-2 Data
+pixels = data_adjusted.reshape(-1, data_adjusted.shape[-1])  # (954, 716, 10)
+
+
+# Spectral angle mapper
+def sam(v1, v2):
+
+    dot_product = np.dot(v1, v2)
+    norm_product = np.linalg.norm(v1) * np.linalg.norm(v2)
+    angle = np.arccos(dot_product / norm_product)  # angle
+    return angle
+
+
+# Compute spectral angles for all pixels against Oak and Road
+oak_angles = np.array([sam(pixel, oak_spectrum) for pixel in pixels])
+road_angles = np.array([sam(pixel, road_spectrum) for pixel in pixels])
+
+# indices of the 100 lowest spectral angles (best matches)
+closest_oak_indices = np.argsort(oak_angles)[:100]
+closest_road_indices = np.argsort(road_angles)[:100]
+
+# Reshape indices back to 2D for visualization
+oak_pixels = np.unravel_index(closest_oak_indices, (954, 716))
+road_pixels = np.unravel_index(closest_road_indices, (954, 716))
+
+# Plot the Spectra of 1st, 50th, and 100th closest matches for both Oak and Road
+plt.figure(figsize=(12, 6))
+
+for i, idx in enumerate([0, 49, 99]):
+    oak_match = pixels[closest_oak_indices[idx]]
+    road_match = pixels[closest_road_indices[idx]]
+
+    plt.plot(sentinel_wavelengths, oak_match, label=f"Oak Match {idx + 1}", linestyle="-")
+    plt.plot(sentinel_wavelengths, road_match, label=f"Road Match {idx + 1}", linestyle=":")
+
+# Plot Reference Oak and Road Spectra
+plt.plot(sentinel_wavelengths, oak_spectrum, label="Oak Spectrum (Reference)", linewidth=2, linestyle="-")
+plt.plot(sentinel_wavelengths, road_spectrum, label="Road Spectrum (Reference)", linewidth=2, linestyle=":")
+
+plt.xlabel("Wavelength (nm)")
+plt.ylabel("Reflectance")
+plt.legend()
+plt.title("Comparison of Closest Matches with Oak and Road Spectra")
+plt.show()
+
+# Set cutoff angles for classification
+threshold_oak = 0.45
+classified_oak = oak_angles.reshape(954, 716) < threshold_oak  # Boolean mask for Oak
+threshold_road = 0.4
+classified_road = road_angles.reshape(954, 716) < threshold_road  # Boolean mask for Road
+
+# Visualization of Oak Pixels
+plt.figure(figsize=(8, 6))
+plt.imshow(classified_oak, cmap="gray")
+plt.colorbar(label="Oak Pixels (0: No, 1: Yes)")
+plt.title("Identified Oak Pixels in Sentinel-2 Imagery")
+plt.show()
+
+# Visualization of Road Pixels
+plt.figure(figsize=(8, 6))
+plt.imshow(classified_road, cmap="gray")
+plt.colorbar(label="Road Pixels (0: No, 1: Yes)")
+plt.title("Identified Road Pixels in Sentinel-2 Imagery")
+plt.show()
 
 
 
 
-print('done')
+
+print('Done!')
